@@ -402,7 +402,7 @@ public:
       , m_body_bytes_needed(0)
       , m_body_bytes_max(max_body_size)
       , m_body_encoding(body_encoding::unknown) {}
-    
+
     /// Get the HTTP version string
     /**
      * @return The version string for this parser
@@ -506,6 +506,8 @@ public:
      * @param value String data to include as the body content.
      */
     void set_body(std::string const & value);
+    void set_body(std::string && value);
+
 
     /// Get body size limit
     /**
@@ -601,9 +603,9 @@ protected:
 
     std::string m_version;
     header_list m_headers;
-    
+
     size_t                  m_header_bytes;
-    
+
     std::string             m_body;
     size_t                  m_body_bytes_needed;
     size_t                  m_body_bytes_max;

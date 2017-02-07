@@ -104,6 +104,23 @@ inline void parser::set_body(std::string const & value) {
     m_body = value;
 }
 
+inline void parser::set_body(std::string && value) {
+    if (value.size() == 0) {
+        remove_header("Content-Length");
+        m_body.clear();
+        return;
+    }
+
+    // TODO: should this method respect the max size? If so how should errors
+    // be indicated?
+
+    std::stringstream len;
+    len << value.size();
+    replace_header("Content-Length", len.str());
+    m_body = std::move(value);
+}
+
+
 inline bool parser::parse_parameter_list(std::string const & in,
     parameter_list & out) const
 {
@@ -120,17 +137,17 @@ inline bool parser::prepare_body() {
     if (!get_header("Content-Length").empty()) {
         std::string const & cl_header = get_header("Content-Length");
         char * end;
-        
+
         // TODO: not 100% sure what the compatibility of this method is. Also,
         // I believe this will only work up to 32bit sizes. Is there a need for
         // > 4GiB HTTP payloads?
         m_body_bytes_needed = std::strtoul(cl_header.c_str(),&end,10);
-        
+
         if (m_body_bytes_needed > m_body_bytes_max) {
             throw exception("HTTP message body too large",
                 status_code::request_entity_too_large);
         }
-        
+
         m_body_encoding = body_encoding::plain;
         return true;
     } else if (get_header("Transfer-Encoding") == "chunked") {
@@ -149,7 +166,7 @@ inline size_t parser::process_body(char const * buf, size_t len) {
         m_body_bytes_needed -= processed;
         return processed;
     } else if (m_body_encoding == body_encoding::chunked) {
-        // TODO: 
+        // TODO:
         throw exception("Unexpected body encoding",
             status_code::internal_server_error);
     } else {

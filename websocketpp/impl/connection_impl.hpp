@@ -575,6 +575,17 @@ void connection<config>::set_body(std::string const & value) {
     m_response.set_body(value);
 }
 
+template <typename config>
+void connection<config>::set_body(std::string && value) {
+    if (m_internal_state != istate::PROCESS_HTTP_REQUEST) {
+        throw exception("Call to set_status from invalid state",
+                      error::make_error_code(error::invalid_state));
+    }
+
+    m_response.set_body(std::move(value));
+}
+
+
 // TODO: EXCEPTION_FREE
 template <typename config>
 void connection<config>::append_header(std::string const & key,
@@ -665,10 +676,10 @@ lib::error_code connection<config>::defer_http_response() {
         m_handshake_timer->cancel();
         m_handshake_timer.reset();
     }
-    
+
     // Do something to signal deferral
     m_http_state = session::http_state::deferred;
-    
+
     return lib::error_code();
 }
 
@@ -690,10 +701,10 @@ void connection<config>::send_http_response(lib::error_code & ec) {
             ec = error::make_error_code(error::invalid_state);
             return;
         }
-    
+
         m_http_state = session::http_state::body_written;
     }
-    
+
     this->write_http_response(lib::error_code());
     ec = lib::error_code();
 }
@@ -810,7 +821,7 @@ void connection<config>::handle_read_handshake(lib::error_code const & ec,
 
     if (!ecm) {
         scoped_lock_type lock(m_connection_state_lock);
-        
+
         if (m_state == session::state::connecting) {
              if (m_internal_state != istate::READ_HTTP_REQUEST) {
                 ecm = error::make_error_code(error::invalid_state);
@@ -834,7 +845,7 @@ void connection<config>::handle_read_handshake(lib::error_code const & ec,
                     "got (expected) eof/state error from closed con");
             return;
         }
-        
+
         log_err(log::elevel::rerror,"handle_read_handshake",ecm);
         this->terminate(ecm);
         return;
@@ -914,10 +925,10 @@ void connection<config>::handle_read_handshake(lib::error_code const & ec,
 
 
         m_internal_state = istate::PROCESS_HTTP_REQUEST;
-        
+
         // We have the complete request. Process it.
         lib::error_code handshake_ec = this->process_handshake_request();
-        
+
         // Write a response if this is a websocket connection or if it is an
         // HTTP connection for which the response has not been deferred or
         // started yet by a different system (i.e. still in init state).
@@ -953,9 +964,9 @@ void connection<config>::write_http_response_error(lib::error_code const & ec) {
         this->terminate(error::make_error_code(error::invalid_state));
         return;
     }
-    
+
     m_internal_state = istate::PROCESS_HTTP_REQUEST;
-    
+
     this->write_http_response(ec);
 }
 
@@ -975,7 +986,7 @@ void connection<config>::handle_read_frame(lib::error_code const & ec,
 
     if (ecm) {
         log::level echannel = log::elevel::rerror;
-        
+
         if (ecm == transport::error::eof) {
             if (m_state == session::state::closed) {
                 // we expect to get eof if the connection is closed already
@@ -1011,7 +1022,7 @@ void connection<config>::handle_read_frame(lib::error_code const & ec,
         } else if (ecm == transport::error::action_after_shutdown) {
             echannel = log::elevel::info;
         }
-        
+
         log_err(echannel, "handle_read_frame", ecm);
         this->terminate(ecm);
         return;
@@ -1114,7 +1125,7 @@ void connection<config>::read_frame() {
     if (!m_read_flag) {
         return;
     }
-    
+
     transport_con_type::async_read_at_least(
         // std::min wont work with undefined static const values.
         // TODO: is there a more elegant way to do this?
@@ -1195,7 +1206,7 @@ lib::error_code connection<config>::process_handshake_request() {
         if (m_http_handler) {
             m_is_http = true;
             m_http_handler(m_connection_hdl);
-            
+
             if (m_state == session::state::closed) {
                 return error::make_error_code(error::http_connection_ended);
             }
@@ -1282,7 +1293,7 @@ lib::error_code connection<config>::process_handshake_request() {
         if (m_response.get_status_code() == http::status_code::uninitialized) {
             m_response.set_status(http::status_code::bad_request);
         }
-        
+
         return error::make_error_code(error::rejected);
     }
 
@@ -1352,7 +1363,7 @@ void connection<config>::handle_write_http_response(lib::error_code const & ec) 
 
     if (!ecm) {
         scoped_lock_type lock(m_connection_state_lock);
-        
+
         if (m_state == session::state::connecting) {
              if (m_internal_state != istate::PROCESS_HTTP_REQUEST) {
                 ecm = error::make_error_code(error::invalid_state);
@@ -1376,7 +1387,7 @@ void connection<config>::handle_write_http_response(lib::error_code const & ec) 
                     "got (expected) eof/state error from closed con");
             return;
         }
-        
+
         log_err(log::elevel::rerror,"handle_write_http_response",ecm);
         this->terminate(ecm);
         return;
@@ -1389,7 +1400,7 @@ void connection<config>::handle_write_http_response(lib::error_code const & ec) 
 
     if (m_response.get_status_code() != http::status_code::switching_protocols)
     {
-        /*if (m_processor || m_ec == error::http_parse_error || 
+        /*if (m_processor || m_ec == error::http_parse_error ||
             m_ec == error::invalid_version || m_ec == error::unsupported_version
             || m_ec == error::upgrade_required)
         {*/
@@ -1401,16 +1412,16 @@ void connection<config>::handle_write_http_response(lib::error_code const & ec) 
         } else {
             // if this was not a websocket connection, we have written
             // the expected response and the connection can be closed.
-            
+
             this->log_http_result();
-            
+
             if (m_ec) {
                 m_alog.write(log::alevel::devel,
                     "got to writing HTTP results with m_ec set: "+m_ec.message());
             }
             m_ec = make_error_code(error::http_connection_ended);
-        }        
-        
+        }
+
         this->terminate(m_ec);
         return;
     }
@@ -1494,7 +1505,7 @@ void connection<config>::handle_send_http_request(lib::error_code const & ec) {
 
     if (!ecm) {
         scoped_lock_type lock(m_connection_state_lock);
-        
+
         if (m_state == session::state::connecting) {
              if (m_internal_state != istate::WRITE_HTTP_REQUEST) {
                 ecm = error::make_error_code(error::invalid_state);
@@ -1520,7 +1531,7 @@ void connection<config>::handle_send_http_request(lib::error_code const & ec) {
                     "got (expected) eof/state error from closed con");
             return;
         }
-        
+
         log_err(log::elevel::rerror,"handle_send_http_request",ecm);
         this->terminate(ecm);
         return;
@@ -1549,7 +1560,7 @@ void connection<config>::handle_read_http_response(lib::error_code const & ec,
 
     if (!ecm) {
         scoped_lock_type lock(m_connection_state_lock);
-        
+
         if (m_state == session::state::connecting) {
             if (m_internal_state != istate::READ_HTTP_RESPONSE) {
                 ecm = error::make_error_code(error::invalid_state);
@@ -1573,12 +1584,12 @@ void connection<config>::handle_read_http_response(lib::error_code const & ec,
                     "got (expected) eof/state error from closed con");
             return;
         }
-        
+
         log_err(log::elevel::rerror,"handle_read_http_response",ecm);
         this->terminate(ecm);
         return;
     }
-    
+
     size_t bytes_processed = 0;
     // TODO: refactor this to use error codes rather than exceptions
     try {
@@ -1616,18 +1627,18 @@ void connection<config>::handle_read_http_response(lib::error_code const & ec,
         if (neg_results.first) {
             // There was a fatal error in extension negotiation. For the moment
             // kill all connections that fail extension negotiation.
-            
-            // TODO: deal with cases where the response is well formed but 
+
+            // TODO: deal with cases where the response is well formed but
             // doesn't match the options requested by the client. Its possible
             // that the best behavior in this cases is to log and continue with
             // an unextended connection.
-            m_alog.write(log::alevel::devel, "Extension negotiation failed: " 
+            m_alog.write(log::alevel::devel, "Extension negotiation failed: "
                 + neg_results.first.message());
             this->terminate(make_error_code(error::extension_neg_failed));
             // TODO: close connection with reason 1010 (and list extensions)
         }
 
-        // response is valid, connection can now be assumed to be open      
+        // response is valid, connection can now be assumed to be open
         m_internal_state = istate::PROCESS_CONNECTION;
         m_state = session::state::open;
 
@@ -1717,7 +1728,7 @@ void connection<config>::terminate(lib::error_code const & ec) {
     if (m_state == session::state::connecting) {
         m_state = session::state::closed;
         tstat = failed;
-        
+
         // Log fail result here before socket is shut down and we can't get
         // the remote address, etc anymore
         if (m_ec != error::http_connection_ended) {
@@ -1812,13 +1823,13 @@ void connection<config>::write_frame() {
                 next_message = message_ptr();
             }
         }
-        
+
         if (m_current_msgs.empty()) {
             // there was nothing to send
             return;
         } else {
             // At this point we own the next messages to be sent and are
-            // responsible for holding the write flag until they are 
+            // responsible for holding the write flag until they are
             // successfully sent or there is some error
             m_write_flag = true;
         }
@@ -1830,46 +1841,46 @@ void connection<config>::write_frame() {
         std::string const & payload = (*it)->get_payload();
 
         m_send_buffer.push_back(transport::buffer(header.c_str(),header.size()));
-        m_send_buffer.push_back(transport::buffer(payload.c_str(),payload.size()));   
+        m_send_buffer.push_back(transport::buffer(payload.c_str(),payload.size()));
     }
 
     // Print detailed send stats if those log levels are enabled
     if (m_alog.static_test(log::alevel::frame_header)) {
     if (m_alog.dynamic_test(log::alevel::frame_header)) {
         std::stringstream general,header,payload;
-        
+
         general << "Dispatching write containing " << m_current_msgs.size()
                 <<" message(s) containing ";
         header << "Header Bytes: \n";
         payload << "Payload Bytes: \n";
-        
+
         size_t hbytes = 0;
         size_t pbytes = 0;
-        
+
         for (size_t i = 0; i < m_current_msgs.size(); i++) {
             hbytes += m_current_msgs[i]->get_header().size();
             pbytes += m_current_msgs[i]->get_payload().size();
 
-            
-            header << "[" << i << "] (" 
-                   << m_current_msgs[i]->get_header().size() << ") " 
+
+            header << "[" << i << "] ("
+                   << m_current_msgs[i]->get_header().size() << ") "
                    << utility::to_hex(m_current_msgs[i]->get_header()) << "\n";
 
             if (m_alog.static_test(log::alevel::frame_payload)) {
             if (m_alog.dynamic_test(log::alevel::frame_payload)) {
-                payload << "[" << i << "] (" 
+                payload << "[" << i << "] ("
                         << m_current_msgs[i]->get_payload().size() << ") ["<<m_current_msgs[i]->get_opcode()<<"] "
-                        << (m_current_msgs[i]->get_opcode() == frame::opcode::text ? 
-                                m_current_msgs[i]->get_payload() : 
+                        << (m_current_msgs[i]->get_opcode() == frame::opcode::text ?
+                                m_current_msgs[i]->get_payload() :
                                 utility::to_hex(m_current_msgs[i]->get_payload())
-                           ) 
+                           )
                         << "\n";
             }
-            }  
+            }
         }
-        
+
         general << hbytes << " header bytes and " << pbytes << " payload bytes";
-        
+
         m_alog.write(log::alevel::frame_header,general.str());
         m_alog.write(log::alevel::frame_header,header.str());
         m_alog.write(log::alevel::frame_payload,payload.str());
@@ -2158,9 +2169,9 @@ template <typename config>
 typename connection<config>::processor_ptr
 connection<config>::get_processor(int version) const {
     // TODO: allow disabling certain versions
-    
+
     processor_ptr p;
-    
+
     switch (version) {
         case 0:
             p = lib::make_shared<processor::hybi00<config> >(
@@ -2196,10 +2207,10 @@ connection<config>::get_processor(int version) const {
         default:
             return p;
     }
-    
+
     // Settings not configured by the constructor
     p->set_max_message_size(m_max_message_size);
-    
+
     return p;
 }
 
@@ -2303,7 +2314,7 @@ template <typename config>
 void connection<config>::log_fail_result()
 {
     std::stringstream s;
-    
+
     int version = processor::get_websocket_version(m_request);
 
     // Connection Type
@@ -2331,7 +2342,7 @@ void connection<config>::log_fail_result()
 
     // HTTP Status code
     s  << " " << m_response.get_status_code();
-    
+
     // WebSocket++ error code & reason
     s << " " << m_ec << " " << m_ec.message();
 
@@ -2345,16 +2356,16 @@ void connection<config>::log_http_result() {
     if (processor::is_websocket_handshake(m_request)) {
         m_alog.write(log::alevel::devel,"Call to log_http_result for WebSocket");
         return;
-    }  
+    }
 
     // Connection Type
     s << (m_request.get_header("host").empty() ? "-" : m_request.get_header("host"))
       << " " << transport_con_type::get_remote_endpoint()
-      << " \"" << m_request.get_method() 
-      << " " << (m_uri ? m_uri->get_resource() : "-") 
+      << " \"" << m_request.get_method()
+      << " " << (m_uri ? m_uri->get_resource() : "-")
       << " " << m_request.get_version() << "\" " << m_response.get_status_code()
       << " " << m_response.get_body().size();
-    
+
     // User Agent
     std::string ua = m_request.get_header("User-Agent");
     if (ua.empty()) {
