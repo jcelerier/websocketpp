@@ -112,7 +112,7 @@ public:
       , m_terminal(false)
       , m_compressed(false)
     {
-        m_payload.reserve(size);
+        m_payload.reserve(size + 16);
     }
 
     /// Return whether or not the message has been prepared for sending
@@ -273,7 +273,7 @@ public:
      * @param len The length of new payload in bytes.
      */
     void set_payload(void const * payload, size_t len) {
-        m_payload.reserve(len);
+        m_payload.reserve(len + 16);
         char const * pl = static_cast<char const *>(payload);
         m_payload.assign(pl, pl + len);
     }
@@ -285,7 +285,7 @@ public:
      * @param payload A string containing the data array to append.
      */
     void append_payload(std::string const & payload) {
-        m_payload.append(payload);
+      append_payload(payload.data(), payload.size());
     }
 
     /// Append payload data
@@ -296,7 +296,7 @@ public:
      * @param len The length of payload in bytes
      */
     void append_payload(void const * payload, size_t len) {
-        m_payload.reserve(m_payload.size()+len);
+        m_payload.reserve(m_payload.size()+len + 16);
         m_payload.append(static_cast<char const *>(payload),len);
     }
 
