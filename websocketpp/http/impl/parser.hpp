@@ -104,6 +104,20 @@ inline void parser::set_body(std::string const & value) {
     m_body = value;
 }
 
+inline void parser::set_body(std::string && value) {
+    if (value.size() == 0) {
+        remove_header("Content-Length");
+        m_body.clear();
+        return;
+    }
+    // TODO: should this method respect the max size? If so how should errors
+    // be indicated?
+    std::stringstream len;
+    len << value.size();
+    replace_header("Content-Length", len.str());
+    m_body = std::move(value);
+}
+
 inline bool parser::parse_parameter_list(std::string const & in,
     parameter_list & out) const
 {

@@ -516,6 +516,7 @@ public:
      * @param value String data to include as the body content.
      */
     void set_body(std::string const & value);
+    void set_body(std::string && value);
 
     /// Get body size limit
     /**
