@@ -325,7 +325,7 @@ public:
                 lib::asio::milliseconds(duration))
         );
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             new_timer->async_wait(m_strand->wrap(lib::bind(
                 &type::handle_timer, get_shared(),
                 new_timer,
@@ -469,7 +469,7 @@ protected:
     lib::error_code init_asio (io_service_ptr io_service) {
         m_io_service = io_service;
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
           m_strand.reset(new lib::asio::io_context::strand(*io_service));
         }
 
@@ -633,7 +633,7 @@ protected:
         );
 
         // Send proxy request
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             lib::asio::async_write(
                 socket_con_type::get_next_layer(),
                 m_bufs,
@@ -715,7 +715,7 @@ protected:
             return;
         }
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             lib::asio::async_read_until(
                 socket_con_type::get_next_layer(),
                 m_proxy_data->read_buf,
@@ -853,7 +853,7 @@ protected:
             return;
         }*/
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             lib::asio::async_read(
                 socket_con_type::get_socket(),
                 lib::asio::buffer(buf,len),
@@ -923,7 +923,7 @@ protected:
     void async_write(const char* buf, size_t len, write_handler handler) {
         m_bufs.push_back(lib::asio::buffer(buf,len));
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             lib::asio::async_write(
                 socket_con_type::get_socket(),
                 m_bufs,
@@ -963,7 +963,7 @@ protected:
             m_bufs.push_back(lib::asio::buffer((*it).buf,(*it).len));
         }
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             lib::asio::async_write(
                 socket_con_type::get_socket(),
                 m_bufs,
@@ -1031,7 +1031,7 @@ protected:
      * This needs to be thread safe
      */
     lib::error_code interrupt(interrupt_handler handler) {
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
           boost::asio::post(*m_io_service, m_strand->wrap(handler));
         } else {
           boost::asio::post(*m_io_service, handler);
@@ -1040,7 +1040,7 @@ protected:
     }
 
     lib::error_code dispatch(dispatch_handler handler) {
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
           boost::asio::post(*m_io_service, m_strand->wrap(handler));
         } else {
           boost::asio::post(*m_io_service, handler);

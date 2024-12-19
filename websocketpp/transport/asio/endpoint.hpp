@@ -698,7 +698,7 @@ public:
 
     /// wraps the reset method of the internal io_service object
     void reset() {
-        m_io_service->reset();
+        m_io_service->restart();
     }
 
     /// wraps the stopped method of the internal io_service object
@@ -810,7 +810,7 @@ public:
 
         m_alog->write(log::alevel::devel, "asio::async_accept");
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             m_acceptor->async_accept(
                 tcon->get_raw_socket(),
                 tcon->get_strand()->wrap(lib::bind(
@@ -880,7 +880,6 @@ protected:
         callback(ret_ec);
     }
 
-#if BOOST_VERSION < 108700
     /// Initiate a new connection
     // TODO: there have to be some more failure conditions here
     void async_connect(transport_con_ptr tcon, uri_ptr u, connect_handler cb) {
@@ -920,7 +919,7 @@ protected:
             port = pu->get_port_str();
         }
 
-        tcp::resolver::query query(host,port);
+        boost::asio::ip::basic_resolver_query<boost::asio::ip::tcp> query(host,port);
 
         if (m_alog->static_test(log::alevel::devel)) {
             m_alog->write(log::alevel::devel,
@@ -940,9 +939,9 @@ protected:
             )
         );
 
-        if (config::enable_multithreading) {
+        if constexpr (config::enable_multithreading) {
             m_resolver->async_resolve(
-                query,
+                query.host_name(), query.service_name(),
                 tcon->get_strand()->wrap(lib::bind(
                     &type::handle_resolve,
                     this,
@@ -955,7 +954,7 @@ protected:
             );
         } else {
             m_resolver->async_resolve(
-                query,
+              query.host_name(), query.service_name(),
                 lib::bind(
                     &type::handle_resolve,
                     this,
@@ -968,7 +967,6 @@ protected:
             );
         }
     }
-#endif
 
     /// DNS resolution timeout handler
     /**
@@ -1002,10 +1000,10 @@ protected:
         callback(ret_ec);
     }
 
-#if BOOST_VERSION < 108700
+
     void handle_resolve(transport_con_ptr tcon, timer_ptr dns_timer,
         connect_handler callback, lib::asio::error_code const & ec,
-        lib::asio::ip::tcp::resolver::iterator iterator)
+        boost::asio::ip::basic_resolver_results<boost::asio::ip::tcp> iterator)
     {
       if(ec == lib::asio::error::operation_aborted
          || lib::asio::is_neg(dns_timer->expiry() - clk::now()))
@@ -1025,9 +1023,7 @@ protected:
         if (m_alog->static_test(log::alevel::devel)) {
             std::stringstream s;
             s << "Async DNS resolve successful. Results: ";
-
-            lib::asio::ip::tcp::resolver::iterator it, end;
-            for (it = iterator; it != end; ++it) {
+            for (auto it = iterator.begin(); it != iterator.end(); ++it) {
                 s << (*it).endpoint() << " ";
             }
 
@@ -1050,7 +1046,7 @@ protected:
             )
         );
 
-        if (config::enable_multithreading) {
+        if constexpr(config::enable_multithreading) {
             lib::asio::async_connect(
                 tcon->get_raw_socket(),
                 iterator,
@@ -1078,7 +1074,6 @@ protected:
             );
         }
     }
-#endif
 
     /// Asio connect timeout handler
     /**
